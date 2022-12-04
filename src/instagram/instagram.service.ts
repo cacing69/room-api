@@ -11,6 +11,8 @@ import { readFileSync, writeFileSync } from 'fs';
 import { S3 } from 'aws-sdk';
 import { v4 as uuid } from 'uuid';
 import fetch from 'node-fetch';
+import { paginateBuilder } from '../core/helpers/query-helper';
+import { PaginateDto } from '../core/dtos/paginate.dto';
 // import { setTimeout } from 'timers/promises';
 
 @Injectable()
@@ -30,6 +32,13 @@ export class InstagramService {
     private readonly instagramMediaRepository: Repository<InstagramMedia>, // private readonly authUserProvider: AuthUserProvider,
   ) {
     this.isModeAwsLambda = this.configService.get('APP_AWS_LAMBDA_FUNCTION');
+  }
+
+  async paginate(paginateDto: PaginateDto) {
+    // create paginate builder
+    const params = paginateBuilder(paginateDto);
+    const data = await this.instagramRepository.find(params);
+    return data;
   }
 
   async create(createInstagramDto: CreateInstagramDto, actor?: User) {

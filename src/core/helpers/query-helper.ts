@@ -43,19 +43,6 @@ export const paginateBuilder = (
   paginateDto: PaginateDto,
   paginateOption?: PaginateOption,
 ) => {
-  // let where = {};
-  // if (cursorDto.lastId) {
-  //   where = {
-  //     id: LessThan(decodeId(cursorDto.lastId)),
-  //   };
-  // }
-
-  // if (cursorDto?.filter) {
-  //   Object.entries(cursorDto?.filter)?.forEach(([key, value]) => {
-  //     where[key] = Like(`%${value}%`);
-  //   });
-  // }
-
   const options: FindManyOptions = {
     take: paginateDto.limit,
     // where,
