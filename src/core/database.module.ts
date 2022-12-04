@@ -17,13 +17,15 @@ import { join } from 'path';
         database: configService.get('DATABASE_NAME'),
         entities: [join(__dirname, '/../**/**.entity{.ts,.js}')],
         autoLoadEntities: true,
-        synchronize: Boolean(
-          JSON.parse(configService.get('DATABASE_SYNCHRONIZE')) || false,
-        ),
         logging: true,
         ssl: Boolean(JSON.parse(configService.get('DATABASE_SSL'))),
         migrationsRun: false,
+        synchronize: Boolean(
+          JSON.parse(configService.get('DATABASE_SYNCHRONIZE')) || false,
+        ),
         dropSchema: true,
+        // dropSchema: false,
+        // synchronize: false,
         // extra: {
         //   ssl: {
         //     rejectUnauthorized: false,

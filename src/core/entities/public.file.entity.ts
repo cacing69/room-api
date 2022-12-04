@@ -1,32 +1,26 @@
-import { Instagram } from './instagram.entity';
 import { Exclude, Expose } from 'class-transformer';
 import {
   Column,
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
-  ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
-@Entity('instagramMedias', { schema: 'public' })
-export class InstagramMedia {
+@Entity('publicFiles', { schema: 'public' })
+export class PublicFile {
   @Expose()
   @PrimaryGeneratedColumn('uuid')
   public id!: string;
 
   @Expose()
   @Column()
-  public instagramId!: string;
-
-  @Expose()
-  @Column({ nullable: true })
-  public key?: string;
+  public url!: string;
 
   @Expose()
   @Column()
-  public url!: string;
+  public key!: string;
 
   @Exclude()
   @CreateDateColumn()
@@ -51,7 +45,4 @@ export class InstagramMedia {
   @Exclude()
   @Column({ nullable: true })
   public deletedBy?: string;
-
-  @ManyToOne(() => Instagram, (instagram) => instagram.medias)
-  instagram: Instagram;
 }

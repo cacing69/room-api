@@ -1,9 +1,11 @@
+import { InstagramMedia } from './instagram.media.entity';
 import { Exclude, Expose } from 'class-transformer';
 import {
   Column,
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -36,7 +38,15 @@ export class Instagram {
 
   @Expose()
   @Column({ nullable: true })
+  public category: string;
+
+  @Expose()
+  @Column({ nullable: true })
   public brand: string;
+
+  @Expose()
+  @Column({ nullable: true })
+  public design: string;
 
   @Expose()
   @Column({ default: false })
@@ -73,4 +83,7 @@ export class Instagram {
   @Exclude()
   @Column({ nullable: true })
   public deletedBy?: string;
+
+  @OneToMany(() => InstagramMedia, (media) => media.instagram)
+  medias: InstagramMedia[];
 }
