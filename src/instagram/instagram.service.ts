@@ -23,9 +23,6 @@ export class InstagramService {
   private isModeAwsLambda: boolean;
   private instagramCookies;
 
-  // private instagramCookies = require('./instagram.cookies.json');
-  // fs.readFileSync('./testJsonFile.json', 'utf8')
-
   constructor(
     private readonly configService: ConfigService,
     @InjectRepository(Instagram)
@@ -38,6 +35,7 @@ export class InstagramService {
 
   async create(createInstagramDto: CreateInstagramDto, actor?: User) {
     try {
+      const s3 = new S3();
       // scrape content
       const scraped = await this.scrapeWithPlaywright(
         createInstagramDto.url,
@@ -49,9 +47,42 @@ export class InstagramService {
 
       const mediaImages = [];
 
-      content?.carousel_media?.forEach((v: any) => {
-        mediaImages.push(v.image_versions2.candidates[0].url);
+      await content?.carousel_media?.forEach(
+        (carousel: any, keyCarousel: number) => {
+          carousel.image_versions2.candidates.forEach((media: any) => {
+            if (media.width === 1080) {
+              if (mediaImages.length <= keyCarousel) {
+                mediaImages.push(media.url);
+              }
+            }
+          });
+        },
+      );
+
+      // upload cover first
+      const coverUrlArray =
+        content?.carousel_media[0]?.image_versions2?.candidates;
+      let coverUrlInstagram = null;
+
+      await coverUrlArray.forEach((v) => {
+        console.log(v);
+        if (v.width === 150) {
+          coverUrlInstagram = v.url;
+        }
       });
+
+      console.log('coverUrlInstagram', coverUrlInstagram, mediaImages);
+
+      const coverResult = await fetch(coverUrlInstagram);
+      const coverBlob = await coverResult.buffer();
+
+      const coverUploadResult = await s3
+        .upload({
+          Bucket: this.configService.get('AWS_S3_PUBLIC_BUCKET_NAME'),
+          Body: coverBlob,
+          Key: `${uuid()}.jpg`,
+        })
+        .promise();
 
       let size = null;
       let category = null;
@@ -59,7 +90,6 @@ export class InstagramService {
       // const design = '';
 
       const sizeScrape = caption.match(/(?<=SIZE\s?:+).*?(?=IDR\s:)/gs);
-      console.log(sizeScrape);
 
       const categoryScrape = caption.match(
         /(?<=CATEGORY\s:).*?(?=(PANJANG\s:|SIZE\s:))/gs,
@@ -78,6 +108,8 @@ export class InstagramService {
       instagram.url = createInstagramDto.url;
       instagram.caption = caption;
       instagram.category = category;
+      instagram.coverUrl = coverUploadResult.Location;
+      instagram.coverKey = coverUploadResult.Key;
       instagram.size = size;
       instagram.isDone = true;
       instagram.isSold = false;
@@ -86,34 +118,23 @@ export class InstagramService {
 
       await this.instagramRepository.save(instagram);
 
-      mediaImages.forEach(async (imageUrl: string, k: number) => {
-        const s3 = new S3();
-        const result = await fetch(imageUrl);
-        const blob = await result.buffer();
+      mediaImages.forEach(async (imageUrl: string) => {
+        const mediaResult = await fetch(imageUrl);
+        const mediaBlob = await mediaResult.buffer();
 
-        const uploadResult = await s3
+        const mediaUploadResult = await s3
           .upload({
             Bucket: this.configService.get('AWS_S3_PUBLIC_BUCKET_NAME'),
-            Body: blob,
+            Body: mediaBlob,
             Key: `${uuid()}.jpg`,
           })
           .promise();
 
-        if (k === 0) {
-          // change cover
-          const instagramCover = await this.instagramRepository.findOneBy({
-            id: instagram.id,
-          });
-
-          instagramCover.coverUrl = uploadResult.Location;
-          await this.instagramRepository.save(instagramCover);
-        }
-
         // save to instagram media
         const paramsCreateMedia = {
           instagramId: instagram.id,
-          url: uploadResult.Location,
-          key: uploadResult.Key,
+          url: mediaUploadResult.Location,
+          key: mediaUploadResult.Key,
         };
 
         await this.instagramMediaRepository.save(paramsCreateMedia);

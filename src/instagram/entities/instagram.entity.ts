@@ -24,6 +24,10 @@ export class Instagram {
   @Column({ nullable: true })
   public coverUrl: string;
 
+  @Exclude()
+  @Column({ nullable: true })
+  public coverKey: string;
+
   @Expose()
   @Column({ nullable: true })
   public caption: string;
