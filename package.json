@@ -49,8 +49,6 @@
     "dotenv": "^16.0.1",
     "fs": "^0.0.1-security",
     "hashids": "^2.2.10",
-    "module-alias": "^2.2.2",
-    "nanoid": "^3.0.0",
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.0",
     "pg": "^8.7.3",
