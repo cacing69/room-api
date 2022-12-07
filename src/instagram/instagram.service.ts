@@ -204,7 +204,11 @@ export class InstagramService {
     if (urlIsValid(urls)) {
       if (this.isModeAwsLambda) {
         this.playwright = require('playwright-aws-lambda');
-        this.browser = await this.playwright.launchChromium();
+        this.browser = await this.playwright.launchChromium({ headless: true });
+        // this.browser = await this.playwright.connect({
+        //   browserWSEndpoint:
+        //     'wss://chrome.browserless.io?token=f7cd02c8-b191-4d8c-9c08-54106d7e739d',
+        // });
       } else {
         this.playwright = require('playwright');
         this.browser = await this.playwright?.chromium.launch({
