@@ -14,7 +14,6 @@ import { v4 as uuid } from 'uuid';
 import fetch from 'node-fetch';
 import { paginateBuilder } from '../core/helpers/query-helper';
 import { PaginateDto } from '../core/dtos/paginate.dto';
-// import { setTimeout } from 'timers/promises';
 
 @Injectable()
 export class InstagramService {
@@ -119,8 +118,6 @@ export class InstagramService {
               .promise();
 
             let dimension = null;
-            // const brand = '';
-            // const design = '';
 
             const cleanMatchResult = (matchResult: string[]) => {
               return matchResult[0]?.toLowerCase()?.trim()?.replace('\n', '');
