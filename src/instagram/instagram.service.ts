@@ -14,6 +14,8 @@ import { v4 as uuid } from 'uuid';
 import fetch from 'node-fetch';
 import { paginateBuilder } from '../core/helpers/query-helper';
 import { PaginateDto } from '../core/dtos/paginate.dto';
+import playwright from 'playwright-core';
+import chromium from 'chrome-aws-lambda';
 
 @Injectable()
 export class InstagramService {
@@ -202,26 +204,39 @@ export class InstagramService {
     };
 
     if (urlIsValid(urls)) {
-      if (this.isModeAwsLambda) {
-        this.playwright = require('playwright-aws-lambda');
-        this.browser = await this.playwright.launchChromium({ headless: true });
-        // this.browser = await this.playwright.connect({
-        //   browserWSEndpoint:
-        //     'wss://chrome.browserless.io?token=f7cd02c8-b191-4d8c-9c08-54106d7e739d',
-        // });
-      } else {
-        this.playwright = require('playwright');
-        this.browser = await this.playwright?.chromium.launch({
-          headless: false,
-          defaultViewport: null,
-          args: [
-            '--start-maximized',
-            '--disable-web-security',
-            '--disable-setuid-sandbox',
-          ],
-          ignoreHTTPSErrors: true,
-        });
-      }
+      // if (this.isModeAwsLambda) {
+      //   this.playwright = require('playwright-aws-lambda');
+      //   this.browser = await this.playwright.launchChromium({ headless: true });
+      //   // this.browser = await this.playwright.connect({
+      //   //   browserWSEndpoint:
+      //   //     'wss://chrome.browserless.io?token=f7cd02c8-b191-4d8c-9c08-54106d7e739d',
+      //   // });
+      // } else {
+      //   this.playwright = require('playwright');
+      //   this.browser = await this.playwright?.chromium.launch({
+      //     headless: false,
+      //     defaultViewport: null,
+      //     args: [
+      //       '--start-maximized',
+      //       '--disable-web-security',
+      //       '--disable-setuid-sandbox',
+      //     ],
+      //     ignoreHTTPSErrors: true,
+      //   });
+      // }
+
+      // const chromium = require('chrome-aws-lambda');
+
+      const LOCAL_CHROME_EXECUTABLE = '/opt/google/chrome/google-chrome';
+
+      const executablePath =
+        (await chromium.executablePath) || LOCAL_CHROME_EXECUTABLE;
+
+      this.browser = await playwright.chromium.launch({
+        executablePath,
+        headless: false,
+      });
+
       this.context = await this.browser.newContext({
         bypassCSP: true,
       });
