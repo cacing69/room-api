@@ -14,7 +14,7 @@ import { v4 as uuid } from 'uuid';
 import fetch from 'node-fetch';
 import { paginateBuilder } from '../core/helpers/query-helper';
 import { PaginateDto } from '../core/dtos/paginate.dto';
-import playwright from 'playwright-core';
+import puppeteer from 'puppeteer-core';
 import chromium from 'chrome-aws-lambda';
 
 @Injectable()
@@ -232,37 +232,42 @@ export class InstagramService {
       const executablePath =
         (await chromium.executablePath) || LOCAL_CHROME_EXECUTABLE;
 
-      this.browser = await playwright.chromium.launch({
+      this.browser = await puppeteer.launch({
         executablePath,
         headless: false,
       });
 
-      this.context = await this.browser.newContext({
-        bypassCSP: true,
-      });
+      // this.context = await this.browser.newContext({
+      //   bypassCSP: true,
+      // });
+      this.context = await this.browser.defaultBrowserContext();
+      this.context.overridePermissions('https://instagram.com', []);
+      this.page = await this.context.newPage();
 
       const loginAndSetCookie = async () => {
         const execLogin = async () => {
-          const page = await this.context.newPage();
-
           writeFileSync('./instagram.cookies.json', JSON.stringify([]));
 
-          await page.setDefaultNavigationTimeout(100000);
-          await page.goto('https://instagram.com', {
-            waitUntil: 'networkidle',
+          await this.page.setDefaultNavigationTimeout(100000);
+          await this.page.goto('https://instagram.com', {
+            waitUntil: 'networkidle2',
           });
-          await page.$eval('input[name=username]', (el) => (el.value = ''));
-          await page.type('input[name=username]', 'cacing.worm', {
+          await this.page.$eval(
+            'input[name=username]',
+            (el) => (el.value = ''),
+          );
+          await this.page.type('input[name=username]', 'cacing.worm', {
             delay: 75,
           });
-          await page.type('input[name=password]', '23Cacing09#@', {
+          await this.page.type('input[name=password]', '23Cacing09#@', {
             delay: 75,
           });
-          await page.click('button[type="submit"]');
-          await page.waitForNavigation({ waitUntil: 'networkidle' });
-          await page.waitForTimeout(3000);
+          await this.page.click('button[type="submit"]');
+          await this.page.waitForNavigation({ waitUntil: 'networkidle2' });
+          await this.page.waitForTimeout(3000);
 
-          const currentInstagramCookies = await this.context.cookies();
+          // const currentInstagramCookies = await this.context.cookies();
+          const currentInstagramCookies = await this.page.cookies();
 
           await writeFileSync(
             './instagram.cookies.json',
@@ -277,39 +282,52 @@ export class InstagramService {
         await readFileSync('instagram.cookies.json', 'utf8'),
       );
 
+      // console.log(Object.keys(this.instagramCookies).length);
+      // return [];
+
+      // console.log(`this.instagramCookies`, this.instagramCookies);
+      // return [];
+
       if (!Object.keys(this.instagramCookies).length) {
         await loginAndSetCookie();
-      } else {
-        try {
-          await this.context.addCookies(this.instagramCookies);
-        } catch (error) {
-          await loginAndSetCookie();
-        }
       }
+      // else {
+      //   try {
+      //     // await this.context.addCookies(this.instagramCookies);
+      //     await
+      //   } catch (error) {
+      //     await loginAndSetCookie();
+      //   }
+      // }
 
       try {
         const pages = await Promise.all(
           Array(urls.length)
             .fill(null)
             .map(async () => {
-              const page = await this.context.newPage();
+              const page = await this.browser.newPage();
               return page;
             }),
         );
 
         let loaded = 0;
+        this.page.setCookie(...this.instagramCookies);
 
         const tabScrape = pages.map(async (pageTab, index) => {
           return new Promise((resolve, reject) => {
             (async () => {
               try {
-                await pageTab.goto(`${urls[index]}?__a=1&__d=dis`);
-                await pageTab.waitForLoadState('networkidle');
+                await pageTab.goto(`${urls[index]}?__a=1&__d=dis`, {
+                  waitUntil: 'networkidle2',
+                });
 
-                const content = await pageTab.$eval('body', (dom: any) =>
-                  dom.innerText?.trim(),
-                );
-                resolve(JSON.parse(content));
+                // const content = await pageTab.evaluate('body', (dom: any) =>
+                //   dom.innerText?.trim(),
+                // );
+                const content = await pageTab.evaluate(() => {
+                  return JSON.parse(document.querySelector('body').innerText);
+                });
+                resolve(content);
               } catch (err) {
                 reject(err);
               }
@@ -317,7 +335,7 @@ export class InstagramService {
           }).then(async (json) => {
             loaded += 1;
             if (loaded == urls.length) {
-              await this.context?.close();
+              // await this.context?.close();
               await this.browser?.close();
 
               this.playwright = null;
@@ -334,13 +352,14 @@ export class InstagramService {
         return tabScrape;
       } catch (e) {
         console.log(e);
-        await this.context?.close();
+        // await this.context?.close();
         await this.browser?.close();
 
         this.playwright = null;
         this.browser = null;
         this.context = null;
         this.page = null;
+        throw new BadRequestException(e);
       }
     } else {
       throw new BadRequestException('invalid instagram url');
