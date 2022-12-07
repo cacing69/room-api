@@ -14,8 +14,7 @@ import { v4 as uuid } from 'uuid';
 import fetch from 'node-fetch';
 import { paginateBuilder } from '../core/helpers/query-helper';
 import { PaginateDto } from '../core/dtos/paginate.dto';
-import puppeteer from 'puppeteer-core';
-import chromium from 'chrome-aws-lambda';
+import playwright from 'playwright';
 
 @Injectable()
 export class InstagramService {
@@ -227,21 +226,15 @@ export class InstagramService {
 
       // const chromium = require('chrome-aws-lambda');
 
-      const LOCAL_CHROME_EXECUTABLE = '/opt/google/chrome/google-chrome';
-
-      const executablePath =
-        (await chromium.executablePath) || LOCAL_CHROME_EXECUTABLE;
-
-      this.browser = await puppeteer.launch({
-        executablePath,
+      this.browser = await playwright.chromium.launch({
         headless: false,
       });
 
-      // this.context = await this.browser.newContext({
-      //   bypassCSP: true,
-      // });
-      this.context = await this.browser.defaultBrowserContext();
-      this.context.overridePermissions('https://instagram.com', []);
+      this.context = await this.browser.newContext({
+        bypassCSP: true,
+      });
+      // this.context = await this.browser.defaultBrowserContext();
+      // this.context.overridePermissions('https://instagram.com', []);
       this.page = await this.context.newPage();
 
       const loginAndSetCookie = async () => {
@@ -250,7 +243,7 @@ export class InstagramService {
 
           await this.page.setDefaultNavigationTimeout(100000);
           await this.page.goto('https://instagram.com', {
-            waitUntil: 'networkidle2',
+            waitUntil: 'networkidle',
           });
           await this.page.$eval(
             'input[name=username]',
@@ -263,11 +256,10 @@ export class InstagramService {
             delay: 75,
           });
           await this.page.click('button[type="submit"]');
-          await this.page.waitForNavigation({ waitUntil: 'networkidle2' });
+          await this.page.waitForNavigation({ waitUntil: 'networkidle' });
           await this.page.waitForTimeout(3000);
 
-          // const currentInstagramCookies = await this.context.cookies();
-          const currentInstagramCookies = await this.page.cookies();
+          const currentInstagramCookies = await this.context.cookies();
 
           await writeFileSync(
             './instagram.cookies.json',
@@ -282,52 +274,36 @@ export class InstagramService {
         await readFileSync('instagram.cookies.json', 'utf8'),
       );
 
-      // console.log(Object.keys(this.instagramCookies).length);
-      // return [];
-
-      // console.log(`this.instagramCookies`, this.instagramCookies);
-      // return [];
-
       if (!Object.keys(this.instagramCookies).length) {
         await loginAndSetCookie();
       }
-      // else {
-      //   try {
-      //     // await this.context.addCookies(this.instagramCookies);
-      //     await
-      //   } catch (error) {
-      //     await loginAndSetCookie();
-      //   }
-      // }
 
       try {
         const pages = await Promise.all(
           Array(urls.length)
             .fill(null)
             .map(async () => {
-              const page = await this.browser.newPage();
+              const page = await this.context.newPage();
               return page;
             }),
         );
 
         let loaded = 0;
-        this.page.setCookie(...this.instagramCookies);
+        this.context.addCookies(this.instagramCookies);
 
         const tabScrape = pages.map(async (pageTab, index) => {
           return new Promise((resolve, reject) => {
             (async () => {
               try {
                 await pageTab.goto(`${urls[index]}?__a=1&__d=dis`, {
-                  waitUntil: 'networkidle2',
+                  waitUntil: 'networkidle',
                 });
 
-                // const content = await pageTab.evaluate('body', (dom: any) =>
-                //   dom.innerText?.trim(),
-                // );
-                const content = await pageTab.evaluate(() => {
-                  return JSON.parse(document.querySelector('body').innerText);
-                });
-                resolve(content);
+                const content = await pageTab.$eval('body', (dom: any) =>
+                  dom.innerText?.trim(),
+                );
+
+                resolve(JSON.parse(content));
               } catch (err) {
                 reject(err);
               }
@@ -335,7 +311,7 @@ export class InstagramService {
           }).then(async (json) => {
             loaded += 1;
             if (loaded == urls.length) {
-              // await this.context?.close();
+              await this.context?.close();
               await this.browser?.close();
 
               this.playwright = null;
@@ -352,7 +328,7 @@ export class InstagramService {
         return tabScrape;
       } catch (e) {
         console.log(e);
-        // await this.context?.close();
+        await this.context?.close();
         await this.browser?.close();
 
         this.playwright = null;
