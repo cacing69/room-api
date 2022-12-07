@@ -1,3 +1,4 @@
+import { RecordNotFoundException } from './../core/exceptions/not-found.exception';
 import { InstagramMedia } from './entities/instagram.media.entity';
 import { BadRequestException } from './../core/exceptions/bad-request.exception';
 import { Injectable } from '@nestjs/common';
@@ -39,6 +40,25 @@ export class InstagramService {
     const params = paginateBuilder(paginateDto);
     const data = await this.instagramRepository.find(params);
     return data;
+  }
+
+  async getById(id: string) {
+    const data = await this.instagramRepository.findOne({
+      where: { id },
+      relations: {
+        medias: true,
+      },
+      order: {
+        medias: {
+          indexNumber: 'ASC',
+        },
+      },
+    });
+
+    if (data) {
+      return data;
+    }
+    throw new RecordNotFoundException('instagram with this id does not exist');
   }
 
   async create(createInstagramDto: CreateInstagramDto, actor?: User) {
@@ -98,10 +118,13 @@ export class InstagramService {
               })
               .promise();
 
-            let size = null;
-            let category = null;
+            let dimension = null;
             // const brand = '';
             // const design = '';
+
+            const cleanMatchResult = (matchResult: string[]) => {
+              return matchResult[0]?.toLowerCase()?.trim()?.replace('\n', '');
+            };
 
             const sizeScrape = caption.match(/(?<=SIZE\s?:+).*?(?=IDR\s:)/gs);
 
@@ -109,69 +132,79 @@ export class InstagramService {
               /(?<=CATEGORY\s:).*?(?=(PANJANG\s:|SIZE\s:))/gs,
             );
 
-            if (categoryScrape?.length > 0) {
-              category = categoryScrape[0]
-                ?.toLowerCase()
-                ?.trim()
-                ?.replace('\n', '');
-            }
-
-            if (sizeScrape?.length > 0) {
-              size = sizeScrape[0]?.toLowerCase()?.trim()?.replace('\n', '');
+            if (cleanMatchResult(categoryScrape) !== 'headgear') {
+              const heightScrape = caption.match(
+                /(?<=CATEGORY\s:).*?(?=(PANJANG\s:|LEBAR\s:))/gs,
+              );
+              const widthScrape = caption.match(
+                /(?<=CATEGORY\s:).*?(?=(LEBAR\s:|SIZE\s:))/gs,
+              );
+              dimension = `${cleanMatchResult(heightScrape)}x${cleanMatchResult(
+                widthScrape,
+              )}`;
             }
 
             const instagram = new Instagram();
 
             instagram.url = createInstagramDto.urls[index];
             instagram.caption = caption;
-            instagram.category = category;
+            instagram.category = cleanMatchResult(categoryScrape);
             instagram.coverUrl = coverUploadResult.Location;
             instagram.coverKey = coverUploadResult.Key;
-            instagram.size = size;
+            instagram.size = cleanMatchResult(sizeScrape);
             instagram.isDone = true;
             instagram.isSold = false;
             instagram.price = 0;
+            instagram.dimension = dimension;
             instagram.createdBy = actor?.id;
 
             await this.instagramRepository.save(instagram);
 
-            mediaImages.forEach(async (imageUrl: string) => {
-              const mediaResult = await fetch(imageUrl);
-              const mediaBlob = await mediaResult.buffer();
+            mediaImages.forEach(
+              async (mediaUrl: string, mediaIndex: number) => {
+                const mediaResult = await fetch(mediaUrl);
+                const mediaBlob = await mediaResult.buffer();
 
-              const mediaUploadResult = await s3
-                .upload({
-                  Bucket: this.configService.get('AWS_S3_PUBLIC_BUCKET_NAME'),
-                  Body: mediaBlob,
-                  Key: `${uuid()}.jpg`,
-                })
-                .promise();
+                const mediaUploadResult = await s3
+                  .upload({
+                    Bucket: this.configService.get('AWS_S3_PUBLIC_BUCKET_NAME'),
+                    Body: mediaBlob,
+                    Key: `${uuid()}.jpg`,
+                  })
+                  .promise();
 
-              // save to instagram media
-              const paramsCreateMedia = {
-                instagramId: instagram.id,
-                url: mediaUploadResult.Location,
-                key: mediaUploadResult.Key,
-              };
+                // save to instagram media
+                const paramsCreateMedia = {
+                  instagramId: instagram.id,
+                  url: mediaUploadResult.Location,
+                  key: mediaUploadResult.Key,
+                  indexNumber: index + 1,
+                };
 
-              await this.instagramMediaRepository.save(paramsCreateMedia);
-            });
+                await this.instagramMediaRepository.save(paramsCreateMedia);
+              },
+            );
           }
         });
       });
-    } catch (error: any) {
-      throw new BadRequestException(error?.response?.message || error);
-    } finally {
+
       return {
         scraped: true,
         url: createInstagramDto.urls,
       };
+    } catch (error: any) {
+      throw new BadRequestException(error?.response?.message || error);
     }
   }
 
   async scrapeWithPlaywright(urls: string[], actor?: User) {
-    // if (url.match(/(https?:\/\/(?:www\.)?instagram\.com\/p\/([^/?#&]+)).*/)) {
-    if (true) {
+    const urlIsValid = (eUrls: string[]) => {
+      return eUrls.some((eUrl) =>
+        eUrl.match(/(https?:\/\/(?:www\.)?instagram\.com\/p\/([^/?#&]+)).*/),
+      );
+    };
+
+    if (urlIsValid(urls)) {
       if (this.isModeAwsLambda) {
         this.playwright = require('playwright-aws-lambda');
         this.browser = await this.playwright.launchChromium();
@@ -266,8 +299,6 @@ export class InstagramService {
               }
             })();
           }).then(async (json) => {
-            // console.log(instagramContent);
-            // process here
             loaded += 1;
             if (loaded == urls.length) {
               await this.context?.close();
@@ -287,6 +318,13 @@ export class InstagramService {
         return tabScrape;
       } catch (e) {
         console.log(e);
+        await this.context?.close();
+        await this.browser?.close();
+
+        this.playwright = null;
+        this.browser = null;
+        this.context = null;
+        this.page = null;
       }
     } else {
       throw new BadRequestException('invalid instagram url');

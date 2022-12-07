@@ -28,6 +28,15 @@ export class InstagramController {
     return setResponse(ResponseType.List, data, { meta });
   }
 
+  @Get(':id')
+  @Public()
+  async detail(@Param('id') id: string) {
+    return setResponse(
+      ResponseType.Read,
+      await this.instagramService.getById(id),
+    );
+  }
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @Public()

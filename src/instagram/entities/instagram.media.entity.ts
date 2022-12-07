@@ -25,6 +25,10 @@ export class InstagramMedia {
   public key?: string;
 
   @Expose()
+  @Column({ nullable: true })
+  public indexNumber?: number;
+
+  @Expose()
   @Column()
   public url!: string;
 

@@ -20,12 +20,12 @@ import { join } from 'path';
         logging: true,
         ssl: Boolean(JSON.parse(configService.get('DATABASE_SSL'))),
         migrationsRun: false,
-        // synchronize: Boolean(
-        //   JSON.parse(configService.get('DATABASE_SYNCHRONIZE')) || false,
-        // ),
-        // dropSchema: true,
-        dropSchema: false,
-        synchronize: false,
+        synchronize: Boolean(
+          JSON.parse(configService.get('DATABASE_SYNCHRONIZE')) || false,
+        ),
+        dropSchema: Boolean(
+          JSON.parse(configService.get('DATABASE_DROP_SCHEMA')) || false,
+        ),
         // extra: {
         //   ssl: {
         //     rejectUnauthorized: false,
