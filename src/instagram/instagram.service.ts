@@ -83,17 +83,9 @@ export class InstagramService {
 
             const mediaImages = [];
 
-            await content?.carousel_media?.forEach(
-              (carousel: any, keyCarousel: number) => {
-                carousel.image_versions2.candidates.forEach((media: any) => {
-                  if (media.width === 1080) {
-                    if (mediaImages.length <= keyCarousel) {
-                      mediaImages.push(media.url);
-                    }
-                  }
-                });
-              },
-            );
+            await content?.carousel_media?.forEach((carousel: any) => {
+              mediaImages.push(carousel.image_versions2.candidates[0].url);
+            });
 
             // upload cover first
             const coverUrlArray =
@@ -176,7 +168,7 @@ export class InstagramService {
                   instagramId: instagram.id,
                   url: mediaUploadResult.Location,
                   key: mediaUploadResult.Key,
-                  indexNumber: index + 1,
+                  indexNumber: mediaIndex + 1,
                 };
 
                 await this.instagramMediaRepository.save(paramsCreateMedia);
